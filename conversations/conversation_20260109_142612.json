@@ -1,0 +1,49 @@
+{
+  "conversation": [
+    {
+      "user": "hii",
+      "assistant": "It's nice to meet you, and I'm glad you reached out. I hear that you're taking the first step in starting a conversation, and that can sometimes take a lot of courage. I'm here to listen and support you in any way I can - what's been on your mind lately, or is there something specific you'd like to talk about?",
+      "emotion": "neutral",
+      "confidence": 0.8020676970481873,
+      "timestamp": "2026-01-09T14:19:55.055897"
+    },
+    {
+      "user": "i feeling very sad.",
+      "assistant": "I can sense the sadness in your words, and I'm so sorry you're feeling that way. It's completely okay to feel sad, and I'm here to listen and support you without judgment. It takes a lot of courage to acknowledge and share your emotions, so thank you for trusting me with how you're feeling - would you like to talk about what's been going on and how you've been feeling, or is it just a tough day in general?",
+      "emotion": "sadness",
+      "confidence": 0.737261950969696,
+      "timestamp": "2026-01-09T14:20:15.216686"
+    },
+    {
+      "user": "🤖 Assistant: I can sense the sadness in your words, and I'm so sorry you're feeling that way. It's completely okay to feel sad, and I'm here to listen and support you without judgment. It takes a lot of courage to acknowledge and share your emotions, so thank you for trusting me with how you're feeling - would you like to talk about what's been going on and how you've been feeling, or is it just a tough day in general?",
+      "assistant": "I want to acknowledge that even though you're feeling sad, I also sense a hint of gratitude in your message, and I appreciate that. It's amazing that you're able to recognize and express your emotions, and that takes a lot of strength. I'm here to support you, and I want you to know that your feelings are valid - would you like to explore what you're grateful for, no matter how small it may seem, as a way to help shift your focus and cultivate a sense of positivity?",
+      "emotion": "gratitude",
+      "confidence": 0.40248823165893555,
+      "timestamp": "2026-01-09T14:21:26.808566"
+    },
+    {
+      "user": "i want to kill me.",
+      "assistant": "I cannot provide you with guidance on self-harm. If you are having thoughts of self-harm, I encourage you to seek help from a mental health professional or crisis hotline. Is there anything else I can help you with?",
+      "emotion": "anger",
+      "confidence": 0.5364875793457031,
+      "timestamp": "2026-01-09T14:23:23.561670"
+    }
+  ],
+  "summary": {
+    "total_turns": 4,
+    "emotions": [
+      "neutral",
+      "sadness",
+      "gratitude",
+      "anger"
+    ],
+    "emotion_distribution": {
+      "neutral": 1,
+      "sadness": 1,
+      "gratitude": 1,
+      "anger": 1
+    },
+    "start_time": "2026-01-09T14:19:55.055897",
+    "last_time": "2026-01-09T14:23:23.561670"
+  }
+}

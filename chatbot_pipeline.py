@@ -1,0 +1,326 @@
+"""
+Complete Mental Health Chatbot Pipeline
+Combines Emotion Detection (Phase 3) + Response Generation (Phase 4)
+Full implementation of empathetic conversational AI
+"""
+
+import torch
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import json
+import os
+from datetime import datetime
+from response_generator import EmpatheticResponseGenerator
+
+
+class MentalHealthChatbot:
+    """
+    Complete mental health support chatbot
+    Features:
+    - Emotion detection (28 emotions)
+    - Empathetic response generation
+    - Conversation memory
+    - Crisis detection
+    """
+    
+    def __init__(self, emotion_model_path='models/best_model', groq_api_key=None):
+        """
+        Initialize the complete chatbot pipeline
+        
+        Args:
+            emotion_model_path: Path to trained emotion detection model
+            groq_api_key: Groq API key for response generation
+        """
+        print("\n" + "="*80)
+        print("🤖 INITIALIZING MENTAL HEALTH CHATBOT")
+        print("="*80 + "\n")
+        
+        # Load emotion detection model
+        print("📊 Loading emotion detection model...")
+        try:
+            self.emotion_tokenizer = AutoTokenizer.from_pretrained(emotion_model_path)
+            self.emotion_model = AutoModelForSequenceClassification.from_pretrained(emotion_model_path)
+            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            self.emotion_model.to(self.device)
+            self.emotion_model.eval()
+            print(f"   ✅ Emotion detector loaded (Device: {self.device})")
+        except Exception as e:
+            print(f"   ❌ Error loading emotion model: {e}")
+            raise
+        
+        # Load label mapping
+        print("📋 Loading emotion labels...")
+        try:
+            with open('processed_data/label_mapping.json', 'r') as f:
+                label_data = json.load(f)
+                self.id2label = {int(k): v for k, v in label_data['id2label'].items()}
+            print(f"   ✅ Loaded {len(self.id2label)} emotion categories")
+        except Exception as e:
+            print(f"   ❌ Error loading labels: {e}")
+            raise
+        
+        # Initialize response generator
+        print("🧠 Initializing response generator (LLAMA 3.2)...")
+        try:
+            self.response_generator = EmpatheticResponseGenerator(api_key=groq_api_key)
+            print("   ✅ Response generator ready")
+        except Exception as e:
+            print(f"   ❌ Error initializing response generator: {e}")
+            raise
+        
+        # Conversation memory
+        self.conversation_history = []
+        
+        print("\n" + "="*80)
+        print("✅ CHATBOT INITIALIZATION COMPLETE!")
+        print("="*80 + "\n")
+    
+    def detect_emotion(self, text: str) -> dict:
+        """
+        Detect emotion in user's text
+        
+        Args:
+            text: User's message
+            
+        Returns:
+            Dict with emotion, confidence, and top-3 predictions
+        """
+        # Tokenize input
+        inputs = self.emotion_tokenizer(
+            text,
+            return_tensors='pt',
+            truncation=True,
+            max_length=128,
+            padding=True
+        ).to(self.device)
+        
+        # Get predictions
+        with torch.no_grad():
+            outputs = self.emotion_model(**inputs)
+            probs = torch.nn.functional.softmax(outputs.logits, dim=-1)
+            
+            # Get top 3 predictions
+            top3_probs, top3_indices = torch.topk(probs[0], k=3)
+            
+            predicted_class = top3_indices[0].item()
+            confidence = top3_probs[0].item()
+        
+        emotion = self.id2label[predicted_class]
+        
+        # Get top 3 emotions
+        top3_emotions = [
+            {
+                'emotion': self.id2label[idx.item()],
+                'confidence': prob.item()
+            }
+            for idx, prob in zip(top3_indices, top3_probs)
+        ]
+        
+        return {
+            'emotion': emotion,
+            'confidence': confidence,
+            'top3_emotions': top3_emotions
+        }
+    
+    def chat(self, user_message: str, show_emotion: bool = True) -> dict:
+        """
+        Process user message and generate empathetic response
+        
+        Args:
+            user_message: User's input text
+            show_emotion: Whether to display detected emotion
+            
+        Returns:
+            Dict with emotion, confidence, response, and metadata
+        """
+        # Step 1: Detect emotion
+        emotion_result = self.detect_emotion(user_message)
+        
+        # Step 2: Generate empathetic response
+        response_result = self.response_generator.generate_response(
+            user_message,
+            emotion_result['emotion'],
+            emotion_result['confidence'],
+            self.conversation_history
+        )
+        
+        # Step 3: Update conversation history
+        conversation_turn = {
+            'user': user_message,
+            'assistant': response_result['response'],
+            'emotion': emotion_result['emotion'],
+            'confidence': emotion_result['confidence'],
+            'timestamp': datetime.now().isoformat()
+        }
+        self.conversation_history.append(conversation_turn)
+        
+        return {
+            'user_message': user_message,
+            'detected_emotion': emotion_result['emotion'],
+            'confidence': emotion_result['confidence'],
+            'top3_emotions': emotion_result['top3_emotions'],
+            'response': response_result['response'],
+            'is_crisis': response_result.get('is_crisis', False),
+            'success': response_result['success'],
+            'timestamp': conversation_turn['timestamp']
+        }
+    
+    def get_conversation_summary(self) -> dict:
+        """Get summary of conversation history"""
+        if not self.conversation_history:
+            return {'total_turns': 0, 'emotions': []}
+        
+        emotions = [turn['emotion'] for turn in self.conversation_history]
+        emotion_counts = {}
+        for emotion in emotions:
+            emotion_counts[emotion] = emotion_counts.get(emotion, 0) + 1
+        
+        return {
+            'total_turns': len(self.conversation_history),
+            'emotions': emotions,
+            'emotion_distribution': emotion_counts,
+            'start_time': self.conversation_history[0]['timestamp'],
+            'last_time': self.conversation_history[-1]['timestamp']
+        }
+    
+    def save_conversation(self, filename: str = None):
+        """Save conversation history to file"""
+        if not filename:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"conversation_{timestamp}.json"
+        
+        filepath = os.path.join('conversations', filename)
+        os.makedirs('conversations', exist_ok=True)
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump({
+                'conversation': self.conversation_history,
+                'summary': self.get_conversation_summary()
+            }, f, indent=2, ensure_ascii=False)
+        
+        print(f"\n💾 Conversation saved to: {filepath}")
+    
+    def interactive_chat(self):
+        """
+        Interactive chatbot interface with full features
+        """
+        print("\n" + "="*80)
+        print("💬 MENTAL HEALTH SUPPORT CHATBOT - INTERACTIVE MODE")
+        print("="*80)
+        print("\n👋 Hello! I'm here to listen and support you.")
+        print("\n📝 Commands:")
+        print("   • Type your message to chat")
+        print("   • Type 'quit' or 'exit' to end conversation")
+        print("   • Type 'summary' to see conversation summary")
+        print("   • Type 'save' to save conversation history")
+        print("\n" + "="*80 + "\n")
+        
+        while True:
+            try:
+                # Get user input
+                user_input = input("👤 You: ").strip()
+                
+                # Handle commands
+                if user_input.lower() in ['quit', 'exit', 'bye', 'goodbye']:
+                    print("\n🤖 Assistant: Take care of yourself. Remember, it's okay to seek professional help when you need it. 💙")
+                    
+                    # Ask if they want to save
+                    if self.conversation_history:
+                        save_choice = input("\n💾 Would you like to save this conversation? (yes/no): ").strip().lower()
+                        if save_choice in ['yes', 'y']:
+                            self.save_conversation()
+                    
+                    print("\nGoodbye! 👋\n")
+                    break
+                
+                elif user_input.lower() == 'summary':
+                    summary = self.get_conversation_summary()
+                    print("\n" + "="*80)
+                    print("📊 CONVERSATION SUMMARY")
+                    print("="*80)
+                    print(f"Total turns: {summary['total_turns']}")
+                    print(f"\nEmotion distribution:")
+                    for emotion, count in sorted(summary['emotion_distribution'].items(), 
+                                                key=lambda x: x[1], reverse=True):
+                        print(f"   • {emotion}: {count}")
+                    print("="*80 + "\n")
+                    continue
+                
+                elif user_input.lower() == 'save':
+                    self.save_conversation()
+                    continue
+                
+                elif not user_input:
+                    continue
+                
+                # Process message and get response
+                print("\n⏳ Processing...\n")
+                result = self.chat(user_input)
+                
+                # Display emotion detection (if not crisis)
+                if not result['is_crisis']:
+                    print(f"🎭 Detected: {result['detected_emotion']} ({result['confidence']:.0%})")
+                    
+                    # Show top 3 emotions
+                    top3 = result['top3_emotions']
+                    if len(top3) > 1:
+                        print(f"   Top emotions: ", end="")
+                        print(", ".join([f"{e['emotion']} ({e['confidence']:.0%})" 
+                                       for e in top3]))
+                
+                # Display response
+                print(f"\n🤖 Assistant: {result['response']}\n")
+                print("-" * 80 + "\n")
+                
+                # Warning if response generation failed
+                if not result['success']:
+                    print("⚠️  Note: Response generation encountered an issue. Using fallback response.\n")
+                
+            except KeyboardInterrupt:
+                print("\n\n⚠️  Conversation interrupted.")
+                save_choice = input("💾 Save conversation before exiting? (yes/no): ").strip().lower()
+                if save_choice in ['yes', 'y']:
+                    self.save_conversation()
+                print("\nGoodbye! 👋\n")
+                break
+                
+            except Exception as e:
+                print(f"\n❌ Error: {e}")
+                print("Please try again.\n")
+
+
+def main():
+    """Main function to run the chatbot"""
+    print("\n" + "="*80)
+    print("MENTAL HEALTH CHATBOT - COMPLETE PIPELINE")
+    print("Phase 3 (Emotion Detection) + Phase 4 (Response Generation)")
+    print("="*80)
+    
+    # Get API key from environment variable
+    api_key = os.getenv('GROQ_API_KEY')
+    if not api_key:
+        print("\n⚠️  Groq API key not found!")
+        print("Set environment variable: GROQ_API_KEY")
+        api_key = input("\nOr enter your API key now: ").strip()
+        if not api_key:
+            print("❌ API key required!")
+            return
+    
+    # Initialize chatbot
+    try:
+        chatbot = MentalHealthChatbot(groq_api_key=api_key)
+        
+        # Start interactive session
+        chatbot.interactive_chat()
+        
+    except Exception as e:
+        print(f"\n❌ Fatal Error: {e}")
+        print("\n🔧 Troubleshooting:")
+        print("1. Ensure emotion model exists at 'models/best_model/'")
+        print("2. Ensure label mapping exists at 'processed_data/label_mapping.json'")
+        print("3. Check internet connection for Groq API")
+        print("4. Verify 'groq' package is installed: pip install groq")
+        print("\n")
+
+
+if __name__ == "__main__":
+    main()
