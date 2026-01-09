@@ -10,6 +10,7 @@ import json
 import os
 from datetime import datetime
 from response_generator import EmpatheticResponseGenerator
+from emotion_detector import EnhancedEmotionDetector
 
 
 class MentalHealthChatbot:
@@ -34,28 +35,16 @@ class MentalHealthChatbot:
         print("🤖 INITIALIZING MENTAL HEALTH CHATBOT")
         print("="*80 + "\n")
         
-        # Load emotion detection model
-        print("📊 Loading emotion detection model...")
+        # Load enhanced emotion detection system
+        print("📊 Loading emotion detection system...")
         try:
-            self.emotion_tokenizer = AutoTokenizer.from_pretrained(emotion_model_path)
-            self.emotion_model = AutoModelForSequenceClassification.from_pretrained(emotion_model_path)
-            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-            self.emotion_model.to(self.device)
-            self.emotion_model.eval()
-            print(f"   ✅ Emotion detector loaded (Device: {self.device})")
+            self.emotion_detector = EnhancedEmotionDetector(
+                model_path=emotion_model_path,
+                api_key=groq_api_key
+            )
+            print(f"   ✅ Emotion detector ready (28 emotions)")
         except Exception as e:
-            print(f"   ❌ Error loading emotion model: {e}")
-            raise
-        
-        # Load label mapping
-        print("📋 Loading emotion labels...")
-        try:
-            with open('processed_data/label_mapping.json', 'r') as f:
-                label_data = json.load(f)
-                self.id2label = {int(k): v for k, v in label_data['id2label'].items()}
-            print(f"   ✅ Loaded {len(self.id2label)} emotion categories")
-        except Exception as e:
-            print(f"   ❌ Error loading labels: {e}")
+            print(f"   ❌ Error loading emotion detector: {e}")
             raise
         
         # Initialize response generator
@@ -84,42 +73,7 @@ class MentalHealthChatbot:
         Returns:
             Dict with emotion, confidence, and top-3 predictions
         """
-        # Tokenize input
-        inputs = self.emotion_tokenizer(
-            text,
-            return_tensors='pt',
-            truncation=True,
-            max_length=128,
-            padding=True
-        ).to(self.device)
-        
-        # Get predictions
-        with torch.no_grad():
-            outputs = self.emotion_model(**inputs)
-            probs = torch.nn.functional.softmax(outputs.logits, dim=-1)
-            
-            # Get top 3 predictions
-            top3_probs, top3_indices = torch.topk(probs[0], k=3)
-            
-            predicted_class = top3_indices[0].item()
-            confidence = top3_probs[0].item()
-        
-        emotion = self.id2label[predicted_class]
-        
-        # Get top 3 emotions
-        top3_emotions = [
-            {
-                'emotion': self.id2label[idx.item()],
-                'confidence': prob.item()
-            }
-            for idx, prob in zip(top3_indices, top3_probs)
-        ]
-        
-        return {
-            'emotion': emotion,
-            'confidence': confidence,
-            'top3_emotions': top3_emotions
-        }
+        return self.emotion_detector.detect_emotion(text)
     
     def chat(self, user_message: str, show_emotion: bool = True) -> dict:
         """
@@ -157,7 +111,7 @@ class MentalHealthChatbot:
             'user_message': user_message,
             'detected_emotion': emotion_result['emotion'],
             'confidence': emotion_result['confidence'],
-            'top3_emotions': emotion_result['top3_emotions'],
+            'top3_emotions': emotion_result['top3'],
             'response': response_result['response'],
             'is_crisis': response_result.get('is_crisis', False),
             'success': response_result['success'],

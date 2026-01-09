@@ -9,6 +9,13 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import warnings
 warnings.filterwarnings('ignore')
 
+# Try to import enhanced detector if available
+try:
+    from emotion_detector import EnhancedEmotionDetector
+    ENHANCED_AVAILABLE = True
+except:
+    ENHANCED_AVAILABLE = False
+
 
 class EmotionPredictor:
     """
@@ -24,6 +31,19 @@ class EmotionPredictor:
         """
         self.model_path = model_path
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        
+        # Try enhanced detector first
+        api_key = os.getenv('GROQ_API_KEY')
+        if ENHANCED_AVAILABLE and api_key:
+            try:
+                self.enhanced_detector = EnhancedEmotionDetector(model_path, api_key)
+                self.use_enhanced = True
+            except:
+                self.use_enhanced = False
+                self.enhanced_detector = None
+        else:
+            self.use_enhanced = False
+            self.enhanced_detector = None
         
         print(f"\n{'='*80}")
         print(f"EMOTION DETECTION - INFERENCE ENGINE")
@@ -57,6 +77,12 @@ class EmotionPredictor:
         Returns:
             List of (emotion, probability) tuples
         """
+        # Use enhanced detector if available
+        if self.use_enhanced:
+            result = self.enhanced_detector.detect_emotion(text)
+            return [(e['emotion'], e['confidence']) for e in result['top3'][:top_k]]
+        
+        # Original prediction code
         # Tokenize
         inputs = self.tokenizer(
             text,
