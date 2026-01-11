@@ -281,6 +281,10 @@ Please reach out to one of these resources right now. Your life has value, and p
 def test_response_generator():
     """Test the response generator with sample cases"""
     
+    # Load environment variables from .env file
+    from dotenv import load_dotenv
+    load_dotenv()
+    
     print("\n" + "="*80)
     print("EMPATHETIC RESPONSE GENERATOR - TEST")
     print("="*80 + "\n")
@@ -288,7 +292,8 @@ def test_response_generator():
     # API key from environment variable
     api_key = os.getenv('GROQ_API_KEY')
     if not api_key:
-        api_key = input("Enter your Groq API key: ").strip()
+        print("[ERROR] GROQ_API_KEY not found in .env file!")
+        return
     
     try:
         generator = EmpatheticResponseGenerator(api_key=api_key)

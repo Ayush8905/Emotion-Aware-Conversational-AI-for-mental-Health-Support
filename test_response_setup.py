@@ -3,6 +3,10 @@ Quick Test Script for Response Generation
 Tests if groq package is installed and API key works
 """
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
+
 print("\n" + "="*80)
 print("TESTING RESPONSE GENERATION SETUP")
 print("="*80 + "\n")
@@ -22,9 +26,7 @@ print("\nTest 2: Testing API connection...")
 import os
 api_key = os.getenv('GROQ_API_KEY')
 if not api_key:
-    api_key = input("Enter your Groq API key: ").strip()
-if not api_key:
-    print("   ❌ API key required")
+    print("   ❌ GROQ_API_KEY not found in .env file")
     exit(1)
 
 try:

@@ -22,5 +22,8 @@ tqdm>=4.65.0
 # Response Generation (Phase 4)
 groq>=0.4.0
 
+# Environment Variables
+python-dotenv>=1.0.0
+
 # Optional: For faster training
 # accelerate>=0.20.0

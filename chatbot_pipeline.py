@@ -32,35 +32,35 @@ class MentalHealthChatbot:
             groq_api_key: Groq API key for response generation
         """
         print("\n" + "="*80)
-        print("🤖 INITIALIZING MENTAL HEALTH CHATBOT")
+        print("INITIALIZING MENTAL HEALTH CHATBOT")
         print("="*80 + "\n")
         
         # Load enhanced emotion detection system
-        print("📊 Loading emotion detection system...")
+        print("Loading emotion detection system...")
         try:
             self.emotion_detector = EnhancedEmotionDetector(
                 model_path=emotion_model_path,
                 api_key=groq_api_key
             )
-            print(f"   ✅ Emotion detector ready (28 emotions)")
+            print(f"   [OK] Emotion detector ready (28 emotions)")
         except Exception as e:
-            print(f"   ❌ Error loading emotion detector: {e}")
+            print(f"   [ERROR] Error loading emotion detector: {e}")
             raise
         
         # Initialize response generator
-        print("🧠 Initializing response generator (LLAMA 3.2)...")
+        print("Initializing response generator (LLAMA 3.3)...")
         try:
             self.response_generator = EmpatheticResponseGenerator(api_key=groq_api_key)
-            print("   ✅ Response generator ready")
+            print("   [OK] Response generator ready")
         except Exception as e:
-            print(f"   ❌ Error initializing response generator: {e}")
+            print(f"   [ERROR] Error initializing response generator: {e}")
             raise
         
         # Conversation memory
         self.conversation_history = []
         
         print("\n" + "="*80)
-        print("✅ CHATBOT INITIALIZATION COMPLETE!")
+        print("[SUCCESS] CHATBOT INITIALIZATION COMPLETE!")
         print("="*80 + "\n")
     
     def detect_emotion(self, text: str) -> dict:
@@ -249,15 +249,16 @@ def main():
     print("Phase 3 (Emotion Detection) + Phase 4 (Response Generation)")
     print("="*80)
     
+    # Load environment variables from .env file
+    from dotenv import load_dotenv
+    load_dotenv()
+    
     # Get API key from environment variable
     api_key = os.getenv('GROQ_API_KEY')
     if not api_key:
-        print("\n⚠️  Groq API key not found!")
-        print("Set environment variable: GROQ_API_KEY")
-        api_key = input("\nOr enter your API key now: ").strip()
-        if not api_key:
-            print("❌ API key required!")
-            return
+        print("\n[ERROR] Groq API key not found in .env file!")
+        print("Please add GROQ_API_KEY to your .env file")
+        return
     
     # Initialize chatbot
     try:
