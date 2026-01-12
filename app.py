@@ -9,6 +9,8 @@ import uuid
 from database_manager import DatabaseManager
 from conversation_storage import ConversationStorage
 from chatbot_pipeline import MentalHealthChatbot
+from safety_monitor import safety_monitor
+from emergency_page import show_emergency_page
 from dotenv import load_dotenv
 import os
 
@@ -38,6 +40,10 @@ if 'page' not in st.session_state:
     st.session_state.page = 'login'
 if 'message_count' not in st.session_state:
     st.session_state.message_count = 0
+if 'disclaimer_shown' not in st.session_state:
+    st.session_state.disclaimer_shown = False
+if 'terms_accepted' not in st.session_state:
+    st.session_state.terms_accepted = False
 
 # Session persistence via query params
 query_params = st.query_params
@@ -110,6 +116,9 @@ def login_page():
     st.markdown('<div style="background: white; padding: 40px; border-radius: 20px; max-width: 450px; margin: 50px auto;">', unsafe_allow_html=True)
     st.title("🧠 Mental Health Chatbot")
     st.markdown("### Welcome Back!")
+    
+    # Safety disclaimer
+    st.warning("⚠️ **Important:** This is an AI assistant, NOT a licensed therapist. In crisis situations, call 988 (US) or emergency services.")
     st.markdown("---")
     
     email = st.text_input("📧 Email", key="login_email")
@@ -193,10 +202,34 @@ def signup_page():
     st.markdown('</div>', unsafe_allow_html=True)
 
 def chat_page():
-    col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+    # Show disclaimer on first use
+    if not st.session_state.disclaimer_shown:
+        st.markdown(
+            '<div style="background: #fff3cd; border: 2px solid #ffc107; padding: 20px; '
+            'border-radius: 10px; margin-bottom: 20px;">'
+            '<h3 style="color: #856404; margin: 0;">⚠️ Important Safety Notice</h3>'
+            '<p style="color: #856404; margin: 10px 0;">'
+            '• This is an <strong>AI chatbot</strong>, NOT a licensed therapist or medical professional<br>'
+            '• For supportive conversations only - NOT a substitute for professional care<br>'
+            '• <strong>In crisis? Call 988 (Suicide & Crisis Lifeline) or 911 immediately</strong><br>'
+            '• All conversations are confidential but not therapy sessions'
+            '</p>'
+            '</div>',
+            unsafe_allow_html=True
+        )
+        if st.button("✅ I Understand", key="accept_disclaimer"):
+            st.session_state.disclaimer_shown = True
+            st.rerun()
+        return
+    
+    col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 1])
     with col1:
         st.title(f"💬 Welcome {st.session_state.user_name}!")
     with col2:
+        if st.button("� Emergency", help="Crisis resources and helplines"):
+            st.session_state.page = 'emergency'
+            st.rerun()
+    with col3:
         if st.button("🆕 New Chat"):
             # End current session
             if st.session_state.current_session_id:
@@ -207,11 +240,11 @@ def chat_page():
             st.session_state.messages = []
             st.session_state.message_count = 0
             st.rerun()
-    with col3:
+    with col4:
         if st.button("📜 History"):
             st.session_state.page = 'history'
             st.rerun()
-    with col4:
+    with col5:
         if st.button("🚪 Logout"):
             if st.session_state.current_session_id:
                 get_storage().end_session(st.session_state.current_session_id)
@@ -264,8 +297,37 @@ def chat_page():
     if submitted and user_input and user_input.strip():
         with st.spinner("💭 Thinking..."):
             try:
+                # Safety check on user input
+                safety_check = safety_monitor.check_safety(user_input.strip())
+                
+                # If crisis detected, show emergency resources immediately
+                if safety_check['risk_level'] == 'crisis':
+                    crisis_response = safety_monitor.get_crisis_response(safety_check['concerns'])
+                    st.error(crisis_response)
+                    
+                    # Log safety event
+                    safety_monitor.log_safety_event(
+                        st.session_state.user_id,
+                        safety_check['risk_level'],
+                        safety_check['concerns']
+                    )
+                
                 chatbot = get_chatbot()
                 result = chatbot.chat(user_input.strip())
+                
+                # Add safety warning if needed
+                if safety_check['show_resources'] and safety_check['risk_level'] != 'crisis':
+                    result['response'] = (
+                        "⚠️ I notice you might be going through a difficult time. "
+                        "Please remember: **Call 988 for crisis support** or **911 for emergencies**. "
+                        "Professional help is available 24/7.\n\n" + result['response']
+                    )
+                
+                # Check for medical advice requests
+                if 'medical_advice_request' in safety_check['concerns']:
+                    result['response'] += (
+                        "\n\n" + safety_monitor.get_medical_disclaimer()
+                    )
                 
                 storage = get_storage()
                 storage.save_message(
@@ -359,6 +421,8 @@ def main():
     else:
         if st.session_state.page == 'history':
             history_page()
+        elif st.session_state.page == 'emergency':
+            show_emergency_page()
         else:
             chat_page()
 
