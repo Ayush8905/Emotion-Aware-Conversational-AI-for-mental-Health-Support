@@ -193,14 +193,25 @@ def signup_page():
     st.markdown('</div>', unsafe_allow_html=True)
 
 def chat_page():
-    col1, col2, col3 = st.columns([2, 1, 1])
+    col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
     with col1:
         st.title(f"💬 Welcome {st.session_state.user_name}!")
     with col2:
+        if st.button("🆕 New Chat"):
+            # End current session
+            if st.session_state.current_session_id:
+                get_storage().end_session(st.session_state.current_session_id)
+            
+            # Clear messages and session
+            st.session_state.current_session_id = None
+            st.session_state.messages = []
+            st.session_state.message_count = 0
+            st.rerun()
+    with col3:
         if st.button("📜 History"):
             st.session_state.page = 'history'
             st.rerun()
-    with col3:
+    with col4:
         if st.button("🚪 Logout"):
             if st.session_state.current_session_id:
                 get_storage().end_session(st.session_state.current_session_id)
