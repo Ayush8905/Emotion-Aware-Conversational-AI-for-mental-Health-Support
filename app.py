@@ -482,6 +482,37 @@ def history_page():
         st.info("No history yet. Start chatting!")
         return
     
+    # Add Delete All button
+    st.markdown(f"**Total Conversations:** {len(sessions)}")
+    col_del1, col_del2, col_del3 = st.columns([2, 2, 6])
+    with col_del1:
+        if st.button("🗑️ Delete All History", type="secondary"):
+            st.session_state.confirm_delete_all = True
+    
+    # Confirmation dialog for delete all
+    if st.session_state.get('confirm_delete_all', False):
+        with col_del2:
+            st.warning("⚠️ Are you sure?")
+        with col_del3:
+            col_yes, col_no, _ = st.columns([1, 1, 8])
+            with col_yes:
+                if st.button("✅ Yes, Delete All"):
+                    deleted_count = 0
+                    for session in sessions:
+                        if storage.delete_conversation(session['session_id'], st.session_state.user_id):
+                            deleted_count += 1
+                    st.session_state.current_session_id = None
+                    st.session_state.messages = []
+                    st.session_state.confirm_delete_all = False
+                    st.success(f"✅ Deleted {deleted_count} conversations!")
+                    st.rerun()
+            with col_no:
+                if st.button("❌ Cancel"):
+                    st.session_state.confirm_delete_all = False
+                    st.rerun()
+    
+    st.markdown("---")
+    
     for session in sessions:
         with st.expander(f"📅 {session['start_time'].strftime('%B %d, %Y at %I:%M %p')} ({session['message_count']} messages)"):
             st.write(f"**Status:** {session['status'].title()}")
@@ -489,7 +520,7 @@ def history_page():
             if session['emotion_summary']['dominant_emotion']:
                 st.write(f"**Main Emotion:** {session['emotion_summary']['dominant_emotion'].title()}")
             
-            col1, col2 = st.columns(2)
+            col1, col2, col3 = st.columns(3)
             with col1:
                 if st.button(f"📖 View", key=f"view_{session['session_id']}"):
                     messages = storage.get_conversation_history(session['session_id'])
@@ -509,6 +540,18 @@ def history_page():
                     st.session_state.message_count = 0
                     st.session_state.page = 'chat'
                     st.rerun()
+            
+            with col3:
+                if st.button(f"🗑️ Delete", key=f"delete_{session['session_id']}", type="secondary"):
+                    if storage.delete_conversation(session['session_id'], st.session_state.user_id):
+                        st.success("✅ Conversation deleted successfully!")
+                        # If this was the active session, clear it
+                        if st.session_state.get('current_session_id') == session['session_id']:
+                            st.session_state.current_session_id = None
+                            st.session_state.messages = []
+                        st.rerun()
+                    else:
+                        st.error("❌ Failed to delete conversation.")
 
 def main():
     if not st.session_state.authenticated:

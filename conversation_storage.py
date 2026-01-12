@@ -323,6 +323,43 @@ class ConversationStorage:
             "exported_at": datetime.utcnow().isoformat()
         }
     
+    # ==================== DELETE ====================
+    
+    def delete_conversation(self, session_id: str, user_id: str) -> bool:
+        """
+        Delete a conversation session and all its messages
+        
+        Args:
+            session_id: Session identifier
+            user_id: User's ID (for verification)
+            
+        Returns:
+            bool: True if deleted successfully, False otherwise
+        """
+        try:
+            # Verify session belongs to user
+            session = self.sessions.find_one({
+                "session_id": session_id,
+                "user_id": ObjectId(user_id)
+            })
+            
+            if not session:
+                return False
+            
+            # Delete all messages in the session
+            self.messages.delete_many({"session_id": session_id})
+            
+            # Delete emotional logs for this session
+            self.emotional_logs.delete_many({"session_id": session_id})
+            
+            # Delete the session itself
+            self.sessions.delete_one({"session_id": session_id})
+            
+            return True
+        except Exception as e:
+            print(f"Error deleting conversation: {e}")
+            return False
+    
     def close(self):
         """Close database connection"""
         if self.client:
