@@ -11,6 +11,9 @@ from conversation_storage import ConversationStorage
 from chatbot_pipeline import MentalHealthChatbot
 from safety_monitor import safety_monitor
 from emergency_page import show_emergency_page
+from feedback_system import feedback_system
+from analytics_dashboard import show_analytics_dashboard
+from satisfaction_survey import show_satisfaction_survey
 from dotenv import load_dotenv
 import os
 
@@ -222,14 +225,18 @@ def chat_page():
             st.rerun()
         return
     
-    col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 1])
+    col1, col2, col3, col4, col5, col6 = st.columns([2, 1, 1, 1, 1, 1])
     with col1:
         st.title(f"💬 Welcome {st.session_state.user_name}!")
     with col2:
-        if st.button("� Emergency", help="Crisis resources and helplines"):
+        if st.button("🆘 Emergency", help="Crisis resources and helplines"):
             st.session_state.page = 'emergency'
             st.rerun()
     with col3:
+        if st.button("📊 Analytics", help="View feedback and statistics"):
+            st.session_state.page = 'analytics'
+            st.rerun()
+    with col4:
         if st.button("🆕 New Chat"):
             # End current session
             if st.session_state.current_session_id:
@@ -240,11 +247,11 @@ def chat_page():
             st.session_state.messages = []
             st.session_state.message_count = 0
             st.rerun()
-    with col4:
+    with col5:
         if st.button("📜 History"):
             st.session_state.page = 'history'
             st.rerun()
-    with col5:
+    with col6:
         if st.button("🚪 Logout"):
             if st.session_state.current_session_id:
                 get_storage().end_session(st.session_state.current_session_id)
@@ -270,7 +277,7 @@ def chat_page():
     if not st.session_state.messages:
         st.info("👋 Hi! I'm here to listen. How are you feeling today?")
     
-    for msg in st.session_state.messages:
+    for idx, msg in enumerate(st.session_state.messages):
         if msg['role'] == 'user':
             emotion = msg.get('emotion', '')
             confidence = int(msg.get('confidence', 0) * 100)
@@ -281,6 +288,74 @@ def chat_page():
             )
         else:
             st.markdown(f'<div class="bot-message">{msg["content"]}</div>', unsafe_allow_html=True)
+            
+            # Add feedback buttons for bot responses
+            feedback_key = f"feedback_{st.session_state.current_session_id}_{idx}"
+            
+            # Check if feedback already given
+            if feedback_key not in st.session_state:
+                col1, col2, col3, col4 = st.columns([1, 1, 1, 10])
+                
+                with col1:
+                    if st.button("👍", key=f"pos_{idx}", help="Helpful response"):
+                        # Get corresponding user message
+                        user_msg_idx = idx - 1
+                        user_msg = st.session_state.messages[user_msg_idx] if user_msg_idx >= 0 else {'content': '', 'emotion': 'unknown'}
+                        
+                        feedback_system.record_response_feedback(
+                            username=st.session_state.user_id,
+                            conversation_id=st.session_state.current_session_id,
+                            message_index=idx,
+                            user_message=user_msg.get('content', ''),
+                            bot_response=msg['content'],
+                            detected_emotion=user_msg.get('emotion', 'unknown'),
+                            rating='positive'
+                        )
+                        st.session_state[feedback_key] = 'positive'
+                        st.rerun()
+                
+                with col2:
+                    if st.button("👎", key=f"neg_{idx}", help="Not helpful"):
+                        user_msg_idx = idx - 1
+                        user_msg = st.session_state.messages[user_msg_idx] if user_msg_idx >= 0 else {'content': '', 'emotion': 'unknown'}
+                        
+                        feedback_system.record_response_feedback(
+                            username=st.session_state.user_id,
+                            conversation_id=st.session_state.current_session_id,
+                            message_index=idx,
+                            user_message=user_msg.get('content', ''),
+                            bot_response=msg['content'],
+                            detected_emotion=user_msg.get('emotion', 'unknown'),
+                            rating='negative'
+                        )
+                        st.session_state[feedback_key] = 'negative'
+                        st.rerun()
+                
+                with col3:
+                    if st.button("😐", key=f"neu_{idx}", help="Neutral"):
+                        user_msg_idx = idx - 1
+                        user_msg = st.session_state.messages[user_msg_idx] if user_msg_idx >= 0 else {'content': '', 'emotion': 'unknown'}
+                        
+                        feedback_system.record_response_feedback(
+                            username=st.session_state.user_id,
+                            conversation_id=st.session_state.current_session_id,
+                            message_index=idx,
+                            user_message=user_msg.get('content', ''),
+                            bot_response=msg['content'],
+                            detected_emotion=user_msg.get('emotion', 'unknown'),
+                            rating='neutral'
+                        )
+                        st.session_state[feedback_key] = 'neutral'
+                        st.rerun()
+            else:
+                # Show feedback was given
+                feedback_given = st.session_state[feedback_key]
+                if feedback_given == 'positive':
+                    st.markdown("✅ *Marked as helpful*")
+                elif feedback_given == 'negative':
+                    st.markdown("❌ *Marked as not helpful*")
+                else:
+                    st.markdown("😐 *Marked as neutral*")
     
     # Input form
     st.markdown("---")
@@ -313,7 +388,7 @@ def chat_page():
                     )
                 
                 chatbot = get_chatbot()
-                result = chatbot.chat(user_input.strip())
+                result = chatbot.chat(user_input.strip(), username=st.session_state.user_id)
                 
                 # Add safety warning if needed
                 if safety_check['show_resources'] and safety_check['risk_level'] != 'crisis':
@@ -358,10 +433,33 @@ def chat_page():
                 })
                 
                 st.session_state.message_count += 1
+                
+                # Show survey prompt after every 15 messages
+                if st.session_state.message_count > 0 and st.session_state.message_count % 15 == 0:
+                    st.session_state.show_survey_prompt = True
+                
                 st.rerun()
                 
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
+    
+    # Survey prompt if triggered
+    if 'show_survey_prompt' in st.session_state and st.session_state.show_survey_prompt:
+        st.markdown("---")
+        st.info(f"📝 You've exchanged {st.session_state.message_count} messages. Would you like to share quick feedback?")
+        
+        col1, col2, col3 = st.columns([1, 1, 2])
+        
+        with col1:
+            if st.button("📝 Give Feedback", key="survey_yes"):
+                st.session_state.page = 'survey'
+                st.session_state.show_survey_prompt = False
+                st.rerun()
+        
+        with col2:
+            if st.button("⏭️ Later", key="survey_skip"):
+                st.session_state.show_survey_prompt = False
+                st.rerun()
     
     elif submitted and not user_input.strip():
         st.warning("⚠️ Please type a message!")
@@ -423,6 +521,17 @@ def main():
             history_page()
         elif st.session_state.page == 'emergency':
             show_emergency_page()
+        elif st.session_state.page == 'analytics':
+            show_analytics_dashboard()
+        elif st.session_state.page == 'survey':
+            survey_completed = show_satisfaction_survey(
+                conversation_id=st.session_state.current_session_id,
+                username=st.session_state.user_id,
+                message_count=st.session_state.message_count
+            )
+            if survey_completed:
+                st.session_state.page = 'chat'
+                st.rerun()
         else:
             chat_page()
 

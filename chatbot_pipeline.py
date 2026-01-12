@@ -8,9 +8,11 @@ import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import json
 import os
+import time
 from datetime import datetime
 from response_generator import EmpatheticResponseGenerator
 from emotion_detector import EnhancedEmotionDetector
+from performance_monitor import performance_monitor
 
 
 class MentalHealthChatbot:
@@ -75,27 +77,36 @@ class MentalHealthChatbot:
         """
         return self.emotion_detector.detect_emotion(text)
     
-    def chat(self, user_message: str, show_emotion: bool = True) -> dict:
+    def chat(self, user_message: str, show_emotion: bool = True, username: str = None) -> dict:
         """
-        Process user message and generate empathetic response
+        Process user message and generate empathetic response with performance tracking
         
         Args:
             user_message: User's input text
             show_emotion: Whether to display detected emotion
+            username: Optional username for performance tracking
             
         Returns:
             Dict with emotion, confidence, response, and metadata
         """
+        overall_start_time = time.time()
+        
         # Step 1: Detect emotion
+        emotion_start_time = time.time()
         emotion_result = self.detect_emotion(user_message)
+        emotion_detection_time = time.time() - emotion_start_time
+        performance_monitor.log_emotion_detection_time(emotion_detection_time, username)
         
         # Step 2: Generate empathetic response
+        llm_start_time = time.time()
         response_result = self.response_generator.generate_response(
             user_message,
             emotion_result['emotion'],
             emotion_result['confidence'],
             self.conversation_history
         )
+        llm_response_time = time.time() - llm_start_time
+        performance_monitor.log_llm_response_time(llm_response_time, username)
         
         # Step 3: Update conversation history
         conversation_turn = {
@@ -107,6 +118,10 @@ class MentalHealthChatbot:
         }
         self.conversation_history.append(conversation_turn)
         
+        # Log overall response time
+        total_response_time = time.time() - overall_start_time
+        performance_monitor.log_response_time(total_response_time, username)
+        
         return {
             'user_message': user_message,
             'detected_emotion': emotion_result['emotion'],
@@ -115,7 +130,12 @@ class MentalHealthChatbot:
             'response': response_result['response'],
             'is_crisis': response_result.get('is_crisis', False),
             'success': response_result['success'],
-            'timestamp': conversation_turn['timestamp']
+            'timestamp': conversation_turn['timestamp'],
+            'performance': {
+                'emotion_detection_time': round(emotion_detection_time, 3),
+                'llm_response_time': round(llm_response_time, 3),
+                'total_time': round(total_response_time, 3)
+            }
         }
     
     def get_conversation_summary(self) -> dict:
