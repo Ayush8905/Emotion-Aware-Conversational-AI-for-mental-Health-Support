@@ -262,6 +262,54 @@ def chat_page():
     
     st.markdown("---")
     
+    # Language Selector in Sidebar
+    with st.sidebar:
+        st.markdown("### 🌍 Language / Idioma / Langue")
+        
+        # Get language manager
+        try:
+            from language_manager import language_manager
+            db = get_db_manager()
+            
+            # Get current user language
+            current_language = st.session_state.get('user_language', db.get_user_language(st.session_state.user_id))
+            
+            # Language selector
+            languages = language_manager.get_supported_languages()
+            language_options = list(languages.values())
+            language_codes = list(languages.keys())
+            
+            current_index = language_codes.index(current_language) if current_language in language_codes else 0
+            
+            selected_language_name = st.selectbox(
+                "Select Language:",
+                language_options,
+                index=current_index,
+                key="language_selector"
+            )
+            
+            # Get selected language code
+            selected_language_code = language_codes[language_options.index(selected_language_name)]
+            
+            # If language changed, update database and session
+            if selected_language_code != current_language:
+                if db.set_user_language(st.session_state.user_id, selected_language_code):
+                    st.session_state.user_language = selected_language_code
+                    st.success("✅ Language updated!")
+                    st.rerun()
+        except ImportError:
+            st.warning("Language support not available")
+        
+        st.markdown("---")
+        st.markdown("**Current User:** " + st.session_state.user_name)
+    
+    # Initialize session_state for user language if not set
+    if 'user_language' not in st.session_state:
+        db = get_db_manager()
+        st.session_state.user_language = db.get_user_language(st.session_state.user_id)
+    
+    st.markdown("---")
+    
     # Initialize session
     if not st.session_state.current_session_id:
         storage = get_storage()
@@ -388,7 +436,8 @@ def chat_page():
                     )
                 
                 chatbot = get_chatbot()
-                result = chatbot.chat(user_input.strip(), username=st.session_state.user_id)
+                user_language = st.session_state.get('user_language', 'en')
+                result = chatbot.chat(user_input.strip(), username=st.session_state.user_id, user_language=user_language)
                 
                 # Add safety warning if needed
                 if safety_check['show_resources'] and safety_check['risk_level'] != 'crisis':

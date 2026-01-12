@@ -77,19 +77,30 @@ class MentalHealthChatbot:
         """
         return self.emotion_detector.detect_emotion(text)
     
-    def chat(self, user_message: str, show_emotion: bool = True, username: str = None) -> dict:
+    def chat(self, user_message: str, show_emotion: bool = True, username: str = None, user_language: str = 'en') -> dict:
         """
-        Process user message and generate empathetic response with performance tracking
+        Process user message and generate empathetic response with performance tracking and translation
         
         Args:
             user_message: User's input text
             show_emotion: Whether to display detected emotion
             username: Optional username for performance tracking
+            user_language: User's preferred language code (default: 'en')
             
         Returns:
             Dict with emotion, confidence, response, and metadata
         """
         overall_start_time = time.time()
+        
+        # Step 0: Translate user message to English if needed (for emotion detection)
+        original_message = user_message
+        if user_language != 'en':
+            try:
+                from language_manager import language_manager
+                user_message = language_manager.translate_to_english(user_message, user_language)
+            except Exception as e:
+                print(f"Translation error: {e}")
+                # Continue with original message if translation fails
         
         # Step 1: Detect emotion
         emotion_start_time = time.time()
@@ -108,13 +119,24 @@ class MentalHealthChatbot:
         llm_response_time = time.time() - llm_start_time
         performance_monitor.log_llm_response_time(llm_response_time, username)
         
+        # Step 2.5: Translate response back to user's language if needed
+        bot_response = response_result['response']
+        if user_language != 'en':
+            try:
+                from language_manager import language_manager
+                bot_response = language_manager.translate_from_english(bot_response, user_language)
+            except Exception as e:
+                print(f"Translation error: {e}")
+                # Continue with English response if translation fails
+        
         # Step 3: Update conversation history
         conversation_turn = {
-            'user': user_message,
-            'assistant': response_result['response'],
+            'user': original_message,  # Store original language message
+            'assistant': bot_response,
             'emotion': emotion_result['emotion'],
             'confidence': emotion_result['confidence'],
-            'timestamp': datetime.now().isoformat()
+            'timestamp': datetime.now().isoformat(),
+            'language': user_language
         }
         self.conversation_history.append(conversation_turn)
         
@@ -123,14 +145,15 @@ class MentalHealthChatbot:
         performance_monitor.log_response_time(total_response_time, username)
         
         return {
-            'user_message': user_message,
+            'user_message': original_message,  # Return original message
             'detected_emotion': emotion_result['emotion'],
             'confidence': emotion_result['confidence'],
             'top3_emotions': emotion_result['top3'],
-            'response': response_result['response'],
+            'response': bot_response,  # Translated response
             'is_crisis': response_result.get('is_crisis', False),
             'success': response_result['success'],
             'timestamp': conversation_turn['timestamp'],
+            'language': user_language,
             'performance': {
                 'emotion_detection_time': round(emotion_detection_time, 3),
                 'llm_response_time': round(llm_response_time, 3),

@@ -103,7 +103,8 @@ class DatabaseManager:
                 "profile": {
                     "preferences": {
                         "notifications": True,
-                        "theme": "light"
+                        "theme": "light",
+                        "language": "en"  # Default language: English
                     }
                 }
             }
@@ -244,6 +245,50 @@ class DatabaseManager:
             return True
         except Exception as e:
             print(f"Error updating profile: {e}")
+            return False
+    
+    # ==================== LANGUAGE PREFERENCE ====================
+    
+    def get_user_language(self, user_id: str) -> str:
+        """
+        Get user's language preference
+        
+        Args:
+            user_id: User's ID
+            
+        Returns:
+            Language code (default: 'en')
+        """
+        try:
+            from bson import ObjectId
+            user = self.users.find_one({"_id": ObjectId(user_id)})
+            if user and 'profile' in user and 'preferences' in user['profile']:
+                return user['profile']['preferences'].get('language', 'en')
+            return 'en'
+        except Exception as e:
+            print(f"Error getting language: {e}")
+            return 'en'
+    
+    def set_user_language(self, user_id: str, language_code: str) -> bool:
+        """
+        Set user's language preference
+        
+        Args:
+            user_id: User's ID
+            language_code: Language code (e.g., 'en', 'es', 'fr')
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            from bson import ObjectId
+            self.users.update_one(
+                {"_id": ObjectId(user_id)},
+                {"$set": {"profile.preferences.language": language_code}}
+            )
+            return True
+        except Exception as e:
+            print(f"Error setting language: {e}")
             return False
     
     # ==================== UTILITY METHODS ====================
