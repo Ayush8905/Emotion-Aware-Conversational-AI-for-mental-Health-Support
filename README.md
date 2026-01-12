@@ -12,7 +12,11 @@ A **complete mental health chatbot system** with transformer-based emotion detec
 ✅ **Safety Features**: 24/7 emergency hotlines, medical disclaimers, and crisis response system  
 ✅ **User Management**: Secure authentication with bcrypt password hashing  
 ✅ **Conversation Memory**: MongoDB storage with session persistence across refreshes  
-✅ **Web Interface**: Modern Streamlit UI with chat history and emergency resources  
+✅ **Feedback System**: Real-time thumbs up/down/neutral ratings on every response  
+✅ **Analytics Dashboard**: Interactive Plotly visualizations for feedback and performance data  
+✅ **Performance Monitoring**: System metrics tracking (CPU, memory, response times)  
+✅ **Satisfaction Surveys**: 5-point rating scales for user experience evaluation  
+✅ **Web Interface**: Modern Streamlit UI with 6 pages (chat, history, emergency, analytics, survey)  
 ✅ **Multi-label Support**: Handles complex emotional states  
 ✅ **High Performance**: Optimized for real-time predictions with GPU acceleration
 
@@ -202,6 +206,8 @@ pip install -r requirements.txt
 - `pymongo==4.16.0` - MongoDB driver
 - `groq>=0.9.0` - LLAMA 3.3 API client
 - `bcrypt==5.0.0` - Password hashing
+- `plotly>=5.17.0` - Interactive data visualizations
+- `psutil>=5.9.0` - System performance monitoring
 - `pandas`, `numpy`, `scikit-learn` - Data processing
 
 ### Step 4: Configure Environment
@@ -232,12 +238,91 @@ streamlit run app.py
 
 The app will open in your browser at **http://localhost:8501**
 
-### Step 6: Create Account & Start Chatting
+### Step 6: Create Account & Start Using All Features
 
-1. Click "Create New Account" on login page
-2. Enter username and password
-3. Accept safety disclaimer
-4. Start chatting with the AI therapist!
+1. **Login/Signup**
+   - Click "Create New Account" on login page
+   - Enter username and password
+   - Accept safety disclaimer
+
+2. **Chat with AI Therapist**
+   - Start conversations about your feelings and emotions
+   - Receive empathetic, context-aware responses
+   - AI detects emotions in real-time
+
+3. **Provide Feedback** (New in Phase 7!)
+   - Rate every bot response with 👍 Positive, 👎 Negative, or 😐 Neutral
+   - Your feedback helps improve the system
+
+4. **View Analytics Dashboard**
+   - Click the 📊 Analytics button in the header
+   - View feedback distribution charts
+   - See survey rating statistics
+   - Analyze emotion-based feedback patterns
+   - Export data to CSV for further analysis
+
+5. **Complete Satisfaction Surveys**
+   - Surveys appear automatically every 15 messages
+   - Rate overall satisfaction, empathy, helpfulness, and ease of use
+   - Provide comments and suggestions
+
+6. **Access Emergency Resources**
+   - Click 🆘 Emergency button for crisis hotlines
+   - 24/7 support lines always available
+
+7. **View Conversation History**
+   - Access past conversations
+   - Review emotional trends
+   - Export chat history
+
+---
+
+## 💡 Using the Application Features
+
+### 1. **Chat Interface**
+- Type your message in the chat input
+- AI detects your emotion (28 categories)
+- Receive empathetic, personalized responses
+- All conversations saved to your account
+
+### 2. **Feedback System** ⭐ New!
+- After each bot response, you'll see feedback buttons: 👍 👎 😐
+- Click to rate the quality and helpfulness of responses
+- Feedback is saved to MongoDB for system improvement
+
+### 3. **Analytics Dashboard** ⭐ New!
+- Click the **📊 Analytics** button in the header
+- View interactive Plotly charts showing:
+  - Overall feedback distribution (pie chart)
+  - Survey rating trends (bar chart)
+  - Emotion-based satisfaction rates (stacked bar)
+  - Recent feedback history with details
+- Export data to CSV for external analysis
+- View personal feedback statistics
+
+### 4. **Satisfaction Surveys** ⭐ New!
+- Complete surveys prompted every 15 messages
+- Rate on 5-point scales:
+  - Overall satisfaction
+  - Empathy and compassion
+  - Helpfulness of responses
+  - Ease of use
+- Answer "Would you recommend?" (Yes/No/Maybe)
+- Provide qualitative feedback and suggestions
+
+### 5. **Performance Monitoring** ⭐ New!
+- Real-time system metrics (CPU, memory, disk)
+- Response time tracking:
+  - Emotion detection time
+  - LLM response time
+  - End-to-end response time
+- All metrics logged to MongoDB
+- Performance summaries available in analytics
+
+### 6. **Emergency Resources**
+- Click 🆘 Emergency button for immediate crisis support
+- Access 24/7 hotlines for suicide prevention, domestic violence, etc.
+- International resources available
 
 ---
 
@@ -540,8 +625,10 @@ model_path = r"models\best_model"
 ```
 bot 2/
 ├── 🌐 Web Application
-│   ├── app.py                          # Main Streamlit web interface
+│   ├── app.py                          # Main Streamlit web interface (6 pages)
 │   ├── emergency_page.py               # Crisis resources & hotlines page
+│   ├── analytics_dashboard.py          # 📊 Interactive analytics & visualizations (Phase 7)
+│   ├── satisfaction_survey.py          # Survey system for user feedback (Phase 7)
 │   └── app_backup.py                   # Backup of previous app version
 │
 ├── 🧠 AI Models & Pipeline
@@ -554,10 +641,17 @@ bot 2/
 ├── 🗄️ Database & Storage
 │   ├── database_manager.py             # MongoDB operations (users, auth)
 │   ├── conversation_storage.py         # Chat history management
+│   ├── feedback_system.py              # 👍👎😐 Feedback collection backend (Phase 7)
 │   └── conversations/                  # JSON exports of chat sessions
 │       └── conversation_20260109_142612.json
 │
-├── 📊 Training & Evaluation
+├── 📊 Monitoring & Analytics (Phase 7)
+│   ├── performance_monitor.py          # System metrics & response time tracking
+│   ├── feedback_system.py              # Feedback collection & analysis
+│   ├── analytics_dashboard.py          # Plotly charts & data visualization
+│   └── satisfaction_survey.py          # User satisfaction surveys
+│
+├── 🎓 Training & Evaluation
 │   ├── data_preprocessing.py           # GoEmotions dataset preparation
 │   ├── train_emotion_classifier.py     # DistilBERT fine-tuning
 │   ├── evaluate_model.py               # Model performance analysis
@@ -602,7 +696,11 @@ bot 2/
 
 | File | Purpose | Status |
 |------|---------|--------|
-| `app.py` | Main web application with Streamlit UI | ✅ Production Ready |
+| `app.py` | Main web application with 6 pages (login, chat, history, emergency, analytics, survey) | ✅ Production Ready |
+| `analytics_dashboard.py` | Interactive Plotly charts for feedback & performance visualization | ✅ Phase 7 Complete |
+| `feedback_system.py` | MongoDB backend for collecting user ratings & survey data | ✅ Phase 7 Complete |
+| `performance_monitor.py` | System metrics tracking (CPU, memory, response times) | ✅ Phase 7 Complete |
+| `satisfaction_survey.py` | User satisfaction surveys with 5-point rating scales | ✅ Phase 7 Complete |
 | `chatbot_pipeline.py` | Orchestrates emotion detection + response generation | ✅ Complete |
 | `safety_monitor.py` | Crisis keyword detection & emergency response | ✅ Complete |
 | `emergency_page.py` | 24/7 hotlines & crisis resources display | ✅ Complete |
