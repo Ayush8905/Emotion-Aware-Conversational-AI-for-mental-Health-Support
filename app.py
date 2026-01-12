@@ -439,6 +439,17 @@ def chat_page():
                 user_language = st.session_state.get('user_language', 'en')
                 result = chatbot.chat(user_input.strip(), username=st.session_state.user_id, user_language=user_language)
                 
+                # Check for offline mode or errors
+                if result.get('fallback_used') or result.get('error_type'):
+                    if result.get('error_type') == 'offline':
+                        st.warning("🔌 **Offline Mode**: You're currently offline. Limited functionality available.")
+                    elif result.get('error_type') == 'rate_limit':
+                        st.warning("⏳ **Rate Limit**: Too many requests. Please wait a moment.")
+                    elif result.get('error_type') in ['network', 'timeout']:
+                        st.warning("🌐 **Connection Issue**: Having trouble connecting. Using fallback response.")
+                    elif result.get('fallback_used'):
+                        st.info("ℹ️ **Fallback Response**: Using pre-configured response due to service issues.")
+                
                 # Add safety warning if needed
                 if safety_check['show_resources'] and safety_check['risk_level'] != 'crisis':
                     result['response'] = (

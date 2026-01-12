@@ -1,7 +1,7 @@
 """
 Empathetic Response Generator using LLAMA 3.2 via Groq API
 Generates therapeutic responses based on detected emotions
-Phase 4: Response Generation Implementation
+Phase 4: Response Generation Implementation with Advanced Error Handling
 """
 
 import os
@@ -9,6 +9,7 @@ from groq import Groq
 import json
 from typing import Dict, List, Optional
 from datetime import datetime
+from error_handler import error_handler, fallback_responses
 
 
 class EmpatheticResponseGenerator:
@@ -153,15 +154,21 @@ Respond with empathy and support. Validate their feelings first, then provide ge
 
         messages.append({"role": "user", "content": emotion_context})
         
-        try:
-            # Generate response using Groq API
-            chat_completion = self.client.chat.completions.create(
+        # Apply retry logic with exponential backoff
+        @error_handler.retry_with_backoff(max_retries=3, initial_delay=1.0)
+        def generate_with_retry():
+            """Generate response with retry logic"""
+            return self.client.chat.completions.create(
                 messages=messages,
                 model=self.model,
                 temperature=0.7,  # Balanced creativity
                 max_tokens=200,   # Keep responses concise
                 top_p=0.9
             )
+        
+        try:
+            # Try to generate response with retry logic
+            chat_completion = generate_with_retry()
             
             response_text = chat_completion.choices[0].message.content.strip()
             
@@ -176,15 +183,39 @@ Respond with empathy and support. Validate their feelings first, then provide ge
             }
             
         except Exception as e:
-            # Fallback response if API fails
+            # Log the error
+            error_handler.log_error("response_generator", str(e), "Failed to generate response")
+            
+            # Determine error type
+            error_str = str(e).lower()
+            if 'timeout' in error_str:
+                error_type = 'timeout_error'
+            elif 'rate limit' in error_str or 'too many requests' in error_str:
+                error_type = 'rate_limit_error'
+            elif 'connection' in error_str or 'network' in error_str:
+                error_type = 'network_error'
+            else:
+                error_type = 'api_error'
+            
+            # Get user-friendly error message
+            user_message_error = error_handler.get_user_friendly_message(error_type)
+            
+            # Get emotion-specific fallback response
+            fallback_response = fallback_responses.get_fallback_response(detected_emotion)
+            
+            # Combine error message with fallback
+            combined_response = f"{user_message_error}\n\n{fallback_response}"
+            
             return {
-                'response': f"I'm here to listen and support you. Could you tell me more about what you're experiencing?",
+                'response': combined_response,
                 'emotion': detected_emotion,
                 'confidence': confidence,
                 'model': self.model,
                 'success': False,
                 'is_crisis': False,
                 'error': str(e),
+                'error_type': error_type,
+                'fallback_used': True,
                 'timestamp': datetime.now().isoformat()
             }
     

@@ -1,7 +1,7 @@
 """
 Complete Mental Health Chatbot Pipeline
 Combines Emotion Detection (Phase 3) + Response Generation (Phase 4)
-Full implementation of empathetic conversational AI
+Full implementation of empathetic conversational AI with Advanced Error Handling
 """
 
 import torch
@@ -13,6 +13,7 @@ from datetime import datetime
 from response_generator import EmpatheticResponseGenerator
 from emotion_detector import EnhancedEmotionDetector
 from performance_monitor import performance_monitor
+from error_handler import error_handler, fallback_responses
 
 
 class MentalHealthChatbot:
@@ -79,7 +80,7 @@ class MentalHealthChatbot:
     
     def chat(self, user_message: str, show_emotion: bool = True, username: str = None, user_language: str = 'en') -> dict:
         """
-        Process user message and generate empathetic response with performance tracking and translation
+        Process user message and generate empathetic response with performance tracking, translation, and advanced error handling
         
         Args:
             user_message: User's input text
@@ -92,74 +93,156 @@ class MentalHealthChatbot:
         """
         overall_start_time = time.time()
         
-        # Step 0: Translate user message to English if needed (for emotion detection)
-        original_message = user_message
-        if user_language != 'en':
-            try:
-                from language_manager import language_manager
-                user_message = language_manager.translate_to_english(user_message, user_language)
-            except Exception as e:
-                print(f"Translation error: {e}")
-                # Continue with original message if translation fails
-        
-        # Step 1: Detect emotion
-        emotion_start_time = time.time()
-        emotion_result = self.detect_emotion(user_message)
-        emotion_detection_time = time.time() - emotion_start_time
-        performance_monitor.log_emotion_detection_time(emotion_detection_time, username)
-        
-        # Step 2: Generate empathetic response
-        llm_start_time = time.time()
-        response_result = self.response_generator.generate_response(
-            user_message,
-            emotion_result['emotion'],
-            emotion_result['confidence'],
-            self.conversation_history
-        )
-        llm_response_time = time.time() - llm_start_time
-        performance_monitor.log_llm_response_time(llm_response_time, username)
-        
-        # Step 2.5: Translate response back to user's language if needed
-        bot_response = response_result['response']
-        if user_language != 'en':
-            try:
-                from language_manager import language_manager
-                bot_response = language_manager.translate_from_english(bot_response, user_language)
-            except Exception as e:
-                print(f"Translation error: {e}")
-                # Continue with English response if translation fails
-        
-        # Step 3: Update conversation history
-        conversation_turn = {
-            'user': original_message,  # Store original language message
-            'assistant': bot_response,
-            'emotion': emotion_result['emotion'],
-            'confidence': emotion_result['confidence'],
-            'timestamp': datetime.now().isoformat(),
-            'language': user_language
-        }
-        self.conversation_history.append(conversation_turn)
-        
-        # Log overall response time
-        total_response_time = time.time() - overall_start_time
-        performance_monitor.log_response_time(total_response_time, username)
-        
-        return {
-            'user_message': original_message,  # Return original message
-            'detected_emotion': emotion_result['emotion'],
-            'confidence': emotion_result['confidence'],
-            'top3_emotions': emotion_result['top3'],
-            'response': bot_response,  # Translated response
-            'is_crisis': response_result.get('is_crisis', False),
-            'success': response_result['success'],
-            'timestamp': conversation_turn['timestamp'],
-            'language': user_language,
-            'performance': {
-                'emotion_detection_time': round(emotion_detection_time, 3),
-                'llm_response_time': round(llm_response_time, 3),
-                'total_time': round(total_response_time, 3)
+        # Check internet connection
+        is_online = error_handler.check_internet_connection(timeout=3)
+        if not is_online:
+            offline_message = fallback_responses.get_offline_message()
+            if user_language != 'en':
+                try:
+                    from language_manager import language_manager
+                    offline_message = language_manager.translate_from_english(offline_message, user_language)
+                except:
+                    pass
+            
+            return {
+                'user_message': user_message,
+                'detected_emotion': 'neutral',
+                'confidence': 0.0,
+                'top3_emotions': [],
+                'response': offline_message,
+                'is_crisis': False,
+                'success': False,
+                'timestamp': datetime.now().isoformat(),
+                'language': user_language,
+                'offline_mode': True,
+                'error': 'No internet connection'
             }
-        }
+        
+        try:
+            # Step 0: Translate user message to English if needed (for emotion detection)
+            original_message = user_message
+            if user_language != 'en':
+                try:
+                    from language_manager import language_manager
+                    user_message = language_manager.translate_to_english(user_message, user_language)
+                except Exception as e:
+                    error_handler.log_error("translation", str(e), "Failed to translate user input")
+                    # Continue with original message if translation fails
+            
+            # Step 1: Detect emotion with error handling
+            emotion_start_time = time.time()
+            try:
+                emotion_result = self.detect_emotion(user_message)
+            except Exception as e:
+                error_handler.log_error("emotion_detection", str(e), "Failed to detect emotion")
+                # Use neutral emotion as fallback
+                emotion_result = {
+                    'emotion': 'neutral',
+                    'confidence': 0.0,
+                    'top3': [{'label': 'neutral', 'score': 0.0}]
+                }
+            
+            emotion_detection_time = time.time() - emotion_start_time
+            performance_monitor.log_emotion_detection_time(emotion_detection_time, username)
+            
+            # Step 2: Generate empathetic response with error handling
+            llm_start_time = time.time()
+            try:
+                response_result = self.response_generator.generate_response(
+                    user_message,
+                    emotion_result['emotion'],
+                    emotion_result['confidence'],
+                    self.conversation_history
+                )
+                llm_response_time = time.time() - llm_start_time
+                performance_monitor.log_llm_response_time(llm_response_time, username)
+            except Exception as e:
+                error_handler.log_error("llm", str(e), "LLM response generation failed")
+                llm_response_time = time.time() - llm_start_time
+                # Use fallback response if LLM fails
+                response_result = {
+                    'response': fallback_responses.get_fallback_response(emotion_result['emotion']),
+                    'success': False,
+                    'is_crisis': False,
+                    'fallback_used': True,
+                    'error_type': 'llm'
+                }
+            
+            # Step 2.5: Translate response back to user's language if needed
+            bot_response = response_result['response']
+            if user_language != 'en':
+                try:
+                    from language_manager import language_manager
+                    bot_response = language_manager.translate_from_english(bot_response, user_language)
+                except Exception as e:
+                    error_handler.log_error("translation", str(e), "Failed to translate bot response")
+                    # Continue with English response if translation fails
+                    bot_response += "\n\n(Translation unavailable - showing English response)"
+            
+            # Step 3: Update conversation history
+            conversation_turn = {
+                'user': original_message,  # Store original language message
+                'assistant': bot_response,
+                'emotion': emotion_result['emotion'],
+                'confidence': emotion_result['confidence'],
+                'timestamp': datetime.now().isoformat(),
+                'language': user_language
+            }
+            self.conversation_history.append(conversation_turn)
+            
+            # Log overall response time
+            total_response_time = time.time() - overall_start_time
+            performance_monitor.log_response_time(total_response_time, username)
+            
+            return {
+                'user_message': original_message,  # Return original message
+                'detected_emotion': emotion_result['emotion'],
+                'confidence': emotion_result['confidence'],
+                'top3_emotions': emotion_result['top3'],
+                'response': bot_response,  # Translated response
+                'is_crisis': response_result.get('is_crisis', False),
+                'success': response_result['success'],
+                'timestamp': conversation_turn['timestamp'],
+                'language': user_language,
+                'fallback_used': response_result.get('fallback_used', False),
+                'error_type': response_result.get('error_type'),
+                'performance': {
+                    'emotion_detection_time': round(emotion_detection_time, 3),
+                    'llm_response_time': round(llm_response_time, 3),
+                    'total_time': round(total_response_time, 3)
+                }
+            }
+        except Exception as e:
+            # Catch-all for any unexpected errors
+            error_handler.log_error("general", str(e), "Unexpected error in chat method")
+            total_response_time = time.time() - overall_start_time
+            
+            fallback_message = fallback_responses.get_fallback_response('neutral')
+            if user_language != 'en':
+                try:
+                    from language_manager import language_manager
+                    fallback_message = language_manager.translate_from_english(fallback_message, user_language)
+                except:
+                    pass
+            
+            return {
+                'user_message': user_message,
+                'detected_emotion': 'neutral',
+                'confidence': 0.0,
+                'top3_emotions': [],
+                'response': fallback_message,
+                'is_crisis': False,
+                'success': False,
+                'timestamp': datetime.now().isoformat(),
+                'language': user_language,
+                'fallback_used': True,
+                'error_type': 'general',
+                'performance': {
+                    'emotion_detection_time': 0,
+                    'llm_response_time': 0,
+                    'total_time': round(total_response_time, 3)
+                }
+            }
     
     def get_conversation_summary(self) -> dict:
         """Get summary of conversation history"""
